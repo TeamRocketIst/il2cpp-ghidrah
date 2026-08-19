@@ -7,6 +7,7 @@ import queue
 import shutil
 import sys
 import tempfile
+import time
 import traceback
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,6 +21,15 @@ class HeadlessLogs:
     application: Path
     script: Path
     launcher: Path
+    elapsed_seconds: float
+
+
+def format_elapsed(seconds: float) -> str:
+    milliseconds = round(max(0.0, seconds) * 1000)
+    hours, remainder = divmod(milliseconds, 3_600_000)
+    minutes, remainder = divmod(remainder, 60_000)
+    whole_seconds, milliseconds = divmod(remainder, 1000)
+    return f"{hours:02d}:{minutes:02d}:{whole_seconds:02d}.{milliseconds:03d}"
 
 
 def _copy_isolated_log(root: Path, name: str, destination: Path) -> None:
@@ -73,7 +83,7 @@ def run_headless(
     if show or dry_run:
         print(f"$ {rendered}")
     if dry_run:
-        return HeadlessLogs(log, script_log, launcher_log)
+        return HeadlessLogs(log, script_log, launcher_log, 0.0)
 
     try:
         import pyghidra  # noqa: F401
@@ -105,8 +115,10 @@ def run_headless(
             ),
             name="il2cpp-ghidrah-headless",
         )
+        started = time.perf_counter()
         process.start()
         process.join()
+        elapsed_seconds = time.perf_counter() - started
         _copy_isolated_log(config_home, "application.log", log)
         _copy_isolated_log(config_home, "script.log", script_log)
     if process.exitcode:
@@ -118,4 +130,4 @@ def run_headless(
             f"PyGhidra headless process failed with exit code {process.exitcode}; "
             f"see {launcher_log}\n{detail}"
         )
-    return HeadlessLogs(log, script_log, launcher_log)
+    return HeadlessLogs(log, script_log, launcher_log, elapsed_seconds)

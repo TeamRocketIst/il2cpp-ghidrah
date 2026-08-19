@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "il2cpp-ghidrah"
-version = "0.1.1"
+version = "0.1.2"
 description = "Headless Ghidra pipeline for Unity IL2CPP applications"
 readme = "README.md"
 requires-python = ">=3.9"

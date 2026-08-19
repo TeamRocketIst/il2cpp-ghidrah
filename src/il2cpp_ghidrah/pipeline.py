@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .config import RunConfig
 from .generators import generate
-from .ghidra import run_headless
+from .ghidra import format_elapsed, run_headless
 from .inputs import resolve_input
 from .installation import discover
 from .process import display_command
@@ -198,6 +198,13 @@ def run(config: RunConfig) -> None:
         }
         if not config.dry_run:
             (output / "run.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+            ghidra_elapsed = import_logs.elapsed_seconds + export_logs.elapsed_seconds
+            print(
+                "Ghidra elapsed: "
+                f"{format_elapsed(ghidra_elapsed)} "
+                f"(import {format_elapsed(import_logs.elapsed_seconds)}, "
+                f"decompilation {format_elapsed(export_logs.elapsed_seconds)})"
+            )
     finally:
         if config.keep_temporary:
             print(f"Temporary input retained: {temporary}")

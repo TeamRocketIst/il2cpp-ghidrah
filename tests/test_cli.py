@@ -12,6 +12,7 @@ from pathlib import Path
 from il2cpp_ghidrah.cli import _class_list, parser
 from il2cpp_ghidrah.config import RunConfig
 from il2cpp_ghidrah.generators import _cpp2il_unity_version, select_generator
+from il2cpp_ghidrah.ghidra import format_elapsed
 from il2cpp_ghidrah.inputs import resolve_input
 from il2cpp_ghidrah.installation import discover
 from il2cpp_ghidrah.pipeline import _require_clean_ghidra_log
@@ -149,6 +150,9 @@ class InstallationTests(unittest.TestCase):
 
 
 class GhidraLogTests(unittest.TestCase):
+    def test_elapsed_time_format(self) -> None:
+        self.assertEqual("01:02:03.457", format_elapsed(3723.4567))
+
     def test_script_error_is_not_hidden_by_zero_exit_status(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             log = Path(directory) / "ghidra.log"
