@@ -5,13 +5,14 @@ import multiprocessing
 import os
 import queue
 import shutil
+import sys
 import tempfile
 import traceback
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
-from .process import display_command
+from .process import MirroredTextWriter, display_command
 
 
 @dataclass(frozen=True)
@@ -42,9 +43,9 @@ def _headless_worker(
         import pyghidra
 
         with log.open("a", encoding="utf-8") as stream:
-            stream.write(f"PyGhidra process: {os.getpid()}\n")
-            stream.flush()
-            with contextlib.redirect_stdout(stream), contextlib.redirect_stderr(stream):
+            mirror = MirroredTextWriter(stream, sys.stdout)
+            mirror.write(f"PyGhidra process: {os.getpid()}\n")
+            with contextlib.redirect_stdout(mirror), contextlib.redirect_stderr(mirror):
                 launcher = pyghidra.start(install_dir=Path(install_dir))
 
                 from ghidra.app.util.headless import AnalyzeHeadless

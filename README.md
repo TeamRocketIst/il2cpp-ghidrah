@@ -7,7 +7,7 @@
 - Python 3.10 or newer.
 - PyGhidra 3.1 or newer.
 - Ghidra 12 or newer.
-- TurboHeader installed under Ghidra's `Ghidra/Extensions` directory.
+- [TurboHeader](https://github.com/TeamRocketIst/turboHeader) installed under Ghidra's `Ghidra/Extensions` directory.
 - Either `il2cpp` from il2cppAOTopsy, or both `Il2CppDumper` and `Cpp2IL`.
 
 Generator commands must be available through `PATH`, unless an explicit executable is supplied with the corresponding command option.
@@ -53,16 +53,19 @@ python -m unittest discover -s tests -v
 The default `auto` mode prefers il2cppAOTopsy and falls back to Il2CppDumper with Cpp2IL. Using extracted files is recommended:
 
 ```sh
+export UNITY_VERSION=2022.3.0f1  # replace with the application's exact version
 il2cpp-ghidrah run libil2cpp.so -M global-metadata.dat \
-  -u 2022.3.0f1 -o output
+  -u "$UNITY_VERSION" -o output
 ```
 
 Inspect the resolved input and commands without starting Ghidra:
 
 ```sh
 il2cpp-ghidrah run libil2cpp.so -M global-metadata.dat \
-  -u 2022.3.0f1 -o output --dry-run --show-commands
+  -u "$UNITY_VERSION" -o output --dry-run --show-commands
 ```
+
+Tool output is shown live and also retained under `output/logs/`.
 
 ## Generators and importers
 
@@ -70,21 +73,21 @@ Choose a generator explicitly when needed:
 
 ```sh
 il2cpp-ghidrah run game.apk -o out -g aotopsy
-il2cpp-ghidrah run game.apk -o out -g dumper
+il2cpp-ghidrah run game.apk -o out -g dumper -u "$UNITY_VERSION"
 ```
 
 Explicit choices do not fall back silently. Custom executables can be supplied with `--il2cpp-command`, `--dumper-command`, and `--cpp2il-command`.
 
-TurboHeader is the default importer. It imports layouts, methods, strings, metadata, and typed relocation slots:
+[TurboHeader](https://github.com/TeamRocketIst/turboHeader) is the default and recommended importer. It is faster than the CParserUtils compatibility path and imports layouts, methods, strings, metadata, and typed relocation slots:
 
 ```sh
-il2cpp-ghidrah run game.apk -o out --importer turbo
+il2cpp-ghidrah run game.apk -o out --importer turbo -u "$UNITY_VERSION"
 ```
 
 The compatibility importer uses the bundled CParserUtils scripts:
 
 ```sh
-il2cpp-ghidrah run game.apk -o out --importer cparser
+il2cpp-ghidrah run game.apk -o out --importer cparser -u "$UNITY_VERSION"
 ```
 
 That flow runs `parse_header_headless.py`, `ghidra_with_struct_headless.py`, and `ghidraUnityMetadata.py`. It imports the header, method signatures, and basic metadata labels, but it does not currently provide TurboHeader's authoritative layouts or complete GOT typing. TurboHeader is still required for the exporter.
@@ -104,28 +107,28 @@ The default is `external`. il2cppAOTopsy supplies `type_offsets.json`; Il2CppDum
 Blacklist known frameworks:
 
 ```sh
-il2cpp-ghidrah run game.apk -o out -s blacklist \
+il2cpp-ghidrah run game.apk -o out -s blacklist -u "$UNITY_VERSION" \
   --ignore-frameworks framework_ignore.txt
 ```
 
 Whitelist assemblies:
 
 ```sh
-il2cpp-ghidrah run game.apk -o out -s whitelist \
+il2cpp-ghidrah run game.apk -o out -s whitelist -u "$UNITY_VERSION" \
   -a Assembly-CSharp -a Assembly-CSharp-firstpass
 ```
 
 Select individual classes:
 
 ```sh
-il2cpp-ghidrah run game.apk -o out \
+il2cpp-ghidrah run game.apk -o out -u "$UNITY_VERSION" \
   -c MainMenuController -c PlayerController
 ```
 
 Export everything:
 
 ```sh
-il2cpp-ghidrah run game.apk -o out -s all
+il2cpp-ghidrah run game.apk -o out -s all -u "$UNITY_VERSION"
 ```
 
 `--classes` accepts a JSON array. `--classes-file` accepts either a JSON array or one class name per line.
@@ -136,20 +139,20 @@ Prefer extracted files so each tool receives the exact ARM64 binary and metadata
 
 ```sh
 il2cpp-ghidrah run libil2cpp.so -M global-metadata.dat \
-  -u 2022.3.0f1 -o out
+  -u "$UNITY_VERSION" -o out
 ```
 
 Extracted application directories are also supported:
 
 ```sh
-il2cpp-ghidrah run extracted-app/ -u 2022.3.0f1 -o out
+il2cpp-ghidrah run extracted-app/ -u "$UNITY_VERSION" -o out
 ```
 
 APK, XAPK, APKM, APKS, and ZIP inputs are detected automatically when extracted files are not available:
 
 ```sh
-il2cpp-ghidrah run game.apk -o out
-il2cpp-ghidrah run game.apks -o out
+il2cpp-ghidrah run game.apk -u "$UNITY_VERSION" -o out
+il2cpp-ghidrah run game.apks -u "$UNITY_VERSION" -o out
 ```
 
 The AOTopsy generator can determine the Unity version from package or asset data:
@@ -159,7 +162,7 @@ il2cpp-ghidrah run libil2cpp.so -M global-metadata.dat \
   --assets assets/bin/Data -o out
 ```
 
-Cpp2IL forced-file mode requires a version. For packaged input without `--unity`, the Dumper flow warns and falls back to `2022.3.0f1`. Pass the real version whenever it is known. Extracted and direct inputs never use this fallback.
+Cpp2IL forced-file mode requires the exact Unity version. The Dumper flow stops with an error when `--unity` is missing; it never guesses a default version.
 
 ## Output
 

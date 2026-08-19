@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import contextlib
+import io
 import json
+import sys
 import tempfile
 import unittest
 import zipfile
@@ -8,10 +11,11 @@ from pathlib import Path
 
 from il2cpp_ghidrah.cli import _class_list, parser
 from il2cpp_ghidrah.config import RunConfig
-from il2cpp_ghidrah.generators import select_generator
+from il2cpp_ghidrah.generators import _cpp2il_unity_version, select_generator
 from il2cpp_ghidrah.inputs import resolve_input
 from il2cpp_ghidrah.installation import discover
 from il2cpp_ghidrah.pipeline import _require_clean_ghidra_log
+from il2cpp_ghidrah.process import run_command
 from il2cpp_ghidrah.selection import prepare_diffable_selection
 
 
@@ -66,6 +70,17 @@ class InputTests(unittest.TestCase):
 
 
 class GeneratorTests(unittest.TestCase):
+    def test_cpp2il_requires_explicit_unity_version(self) -> None:
+        config = RunConfig(Path("game.apk"), Path("output"), generator="dumper")
+        with self.assertRaisesRegex(ValueError, "No default version is guessed"):
+            _cpp2il_unity_version(config)
+
+    def test_cpp2il_uses_explicit_unity_version(self) -> None:
+        config = RunConfig(
+            Path("game.apk"), Path("output"), generator="dumper", unity="2021.3.16f1"
+        )
+        self.assertEqual("2021.3.16f1", _cpp2il_unity_version(config))
+
     def test_auto_falls_back_to_dumper_and_cpp2il(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -87,6 +102,20 @@ class GeneratorTests(unittest.TestCase):
             self.assertEqual("dumper", selected)
             self.assertEqual(str(dumper), selected_command)
             self.assertEqual(str(cpp2il), diffable_command)
+
+
+class ProcessTests(unittest.TestCase):
+    def test_logged_command_output_is_also_visible(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            log = Path(directory) / "tool.log"
+            visible = io.StringIO()
+            with contextlib.redirect_stdout(visible):
+                run_command(
+                    [sys.executable, "-c", "print('tool progress')"],
+                    log=log,
+                )
+            self.assertIn("tool progress", visible.getvalue())
+            self.assertIn("tool progress", log.read_text(encoding="utf-8"))
 
 
 class InstallationTests(unittest.TestCase):

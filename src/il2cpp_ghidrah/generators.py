@@ -9,9 +9,6 @@ from .inputs import ResolvedInput
 from .process import run_command
 
 
-CPP2IL_PACKAGE_UNITY_FALLBACK = "2022.3.0f1"
-
-
 @dataclass(frozen=True)
 class Artifacts:
     directory: Path
@@ -63,19 +60,13 @@ def _input_options(config: RunConfig, resolved: ResolvedInput) -> list[str]:
     return options
 
 
-def _cpp2il_unity_version(config: RunConfig, resolved: ResolvedInput) -> str:
+def _cpp2il_unity_version(config: RunConfig) -> str:
     if config.unity:
         return config.unity
-    if not resolved.is_packaged:
-        raise ValueError(
-            "Cpp2IL with extracted or direct inputs requires an explicit --unity version"
-        )
-    print(
-        "WARNING: no Unity version was supplied for the packaged input; "
-        f"Cpp2IL will use {CPP2IL_PACKAGE_UNITY_FALLBACK}. "
-        "Results may be inaccurate for applications built with another Unity version."
+    raise ValueError(
+        "Cpp2IL requires the exact Unity version; pass --unity <version>. "
+        "No default version is guessed."
     )
-    return CPP2IL_PACKAGE_UNITY_FALLBACK
 
 
 def generate(
@@ -91,7 +82,7 @@ def generate(
     generator, generator_command, cpp2il_command = select_generator(config)
     cpp2il_unity_version = None
     if generator == "dumper":
-        cpp2il_unity_version = _cpp2il_unity_version(config, resolved)
+        cpp2il_unity_version = _cpp2il_unity_version(config)
     print(f"Artifact generator selected: {generator}")
     if generator == "aotopsy":
         command = [
