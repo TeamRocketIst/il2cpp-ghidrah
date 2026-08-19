@@ -4,7 +4,7 @@
 
 ## Requirements
 
-- Python 3.10 or newer.
+- Python 3.9 or newer.
 - PyGhidra 3.1 or newer.
 - Ghidra 12 or newer.
 - [TurboHeader](https://github.com/TeamRocketIst/turboHeader) installed under Ghidra's `Ghidra/Extensions` directory.
