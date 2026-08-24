@@ -53,7 +53,7 @@ python -m unittest discover -s tests -v
 The documented workflow uses Il2CppDumper with Cpp2IL. Using extracted files is recommended:
 
 ```sh
-export UNITY_VERSION=2022.3.0f1  # replace with the application's exact version
+export UNITY_VERSION=2022.3.62f3  # replace with the application's exact version
 il2cpp-ghidrah run libil2cpp.so -M global-metadata.dat \
   -g dumper -u "$UNITY_VERSION" -o output
 ```
