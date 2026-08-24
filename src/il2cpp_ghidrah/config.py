@@ -32,9 +32,14 @@ class RunConfig:
     il2cpp_command: str = "il2cpp"
     dumper_command: str = "Il2CppDumper"
     cpp2il_command: str = "Cpp2IL"
+    decompile_jobs: int = 8
     dry_run: bool = False
     show_commands: bool = False
     keep_temporary: bool = False
+
+    def __post_init__(self) -> None:
+        if type(self.decompile_jobs) is not int or not 0 <= self.decompile_jobs <= 12:
+            raise ValueError("decompile_jobs must be an integer from 0 through 12")
 
     @property
     def turbo_policy(self) -> str:

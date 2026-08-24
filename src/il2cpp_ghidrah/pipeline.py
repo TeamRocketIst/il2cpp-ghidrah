@@ -166,6 +166,7 @@ def run(config: RunConfig) -> None:
             export_command.append(str(config.ignore_frameworks.resolve()))
         if artifacts.noreturn_seeds is not None:
             export_command += ["--noreturn-seeds", str(artifacts.noreturn_seeds)]
+        export_command += ["--decompile-jobs", str(config.decompile_jobs)]
         export_logs = run_headless(
             installation.ghidra_dir,
             export_command,
@@ -193,6 +194,7 @@ def run(config: RunConfig) -> None:
             "scope": config.scope,
             "assemblies": list(config.assemblies),
             "classes": list(config.classes),
+            "decompile_jobs": config.decompile_jobs,
             "project": project_name,
             "commands": [display_command(import_command), display_command(export_command)],
         }

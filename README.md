@@ -66,6 +66,8 @@ il2cpp-ghidrah run libil2cpp.so -M global-metadata.dat \
 ```
 
 Tool output is shown live and also retained under `output/logs/`.
+Decompilation uses eight workers by default. Override it when needed with
+`--decompile-jobs N`, where `N` is from `0` through `12`; `0` selects the legacy sequential path.
 
 ## Generators and importers
 

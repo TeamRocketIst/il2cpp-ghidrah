@@ -58,6 +58,17 @@ def parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--classes-file", type=Path)
     run_parser.add_argument("--ignore-frameworks", type=Path)
     run_parser.add_argument("--project-name")
+    run_parser.add_argument(
+        "--decompile-jobs",
+        type=int,
+        choices=range(13),
+        default=8,
+        metavar="N",
+        help=(
+            "Ghidra decompiler workers from 0 through 12 "
+            "(default: 8; 0 uses the legacy sequential path)"
+        ),
+    )
     run_parser.add_argument("--dry-run", action="store_true")
     run_parser.add_argument("--show-commands", action="store_true")
     run_parser.add_argument("--keep-temporary", action="store_true")
@@ -96,6 +107,7 @@ def _run(args: argparse.Namespace) -> None:
         il2cpp_command=args.il2cpp_command,
         dumper_command=args.dumper_command,
         cpp2il_command=args.cpp2il_command,
+        decompile_jobs=args.decompile_jobs,
         dry_run=args.dry_run,
         show_commands=args.show_commands,
         keep_temporary=args.keep_temporary,

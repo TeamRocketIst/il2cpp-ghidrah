@@ -8,14 +8,15 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from unittest.mock import patch
 
 from il2cpp_ghidrah.cli import _class_list, parser
 from il2cpp_ghidrah.config import RunConfig
-from il2cpp_ghidrah.generators import _cpp2il_unity_version, select_generator
-from il2cpp_ghidrah.ghidra import format_elapsed
-from il2cpp_ghidrah.inputs import resolve_input
-from il2cpp_ghidrah.installation import discover
-from il2cpp_ghidrah.pipeline import _require_clean_ghidra_log
+from il2cpp_ghidrah.generators import Artifacts, _cpp2il_unity_version, select_generator
+from il2cpp_ghidrah.ghidra import HeadlessLogs, format_elapsed
+from il2cpp_ghidrah.inputs import ResolvedInput, resolve_input
+from il2cpp_ghidrah.installation import Installation, discover
+from il2cpp_ghidrah.pipeline import _require_clean_ghidra_log, run
 from il2cpp_ghidrah.process import run_command
 from il2cpp_ghidrah.selection import prepare_diffable_selection
 
@@ -25,6 +26,13 @@ class CliTests(unittest.TestCase):
         args = parser().parse_args(["run", "game.apk", "-o", "out"])
         self.assertEqual("auto", args.generator)
         self.assertEqual("turbo", args.importer)
+        self.assertEqual(8, args.decompile_jobs)
+
+    def test_decompile_jobs_can_be_overridden(self) -> None:
+        args = parser().parse_args([
+            "run", "game.apk", "-o", "out", "--decompile-jobs", "3",
+        ])
+        self.assertEqual(3, args.decompile_jobs)
 
     def test_full_and_short_options(self) -> None:
         args = parser().parse_args([
@@ -44,6 +52,11 @@ class CliTests(unittest.TestCase):
     def test_layout_policy_mapping(self) -> None:
         config = RunConfig(Path("input"), Path("output"), layout="authoritative")
         self.assertEqual("require-authoritative", config.turbo_policy)
+        self.assertEqual(8, config.decompile_jobs)
+
+    def test_run_config_rejects_unsupported_decompile_jobs(self) -> None:
+        with self.assertRaisesRegex(ValueError, "from 0 through 12"):
+            RunConfig(Path("input"), Path("output"), decompile_jobs=13)
 
 
 class InputTests(unittest.TestCase):
@@ -117,6 +130,51 @@ class ProcessTests(unittest.TestCase):
                 )
             self.assertIn("tool progress", visible.getvalue())
             self.assertIn("tool progress", log.read_text(encoding="utf-8"))
+
+
+class PipelineTests(unittest.TestCase):
+    def test_export_command_receives_default_decompile_jobs(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            binary = root / "libil2cpp.so"
+            metadata = root / "global-metadata.dat"
+            artifacts_dir = root / "artifacts"
+            installation = Installation(
+                root / "ghidra",
+                root / "extension",
+                root / "scripts",
+                root / "cparser-scripts",
+                True,
+            )
+            resolved = ResolvedInput(binary, binary, metadata, None, None)
+            artifacts = Artifacts(
+                artifacts_dir,
+                artifacts_dir / "il2cpp.h",
+                artifacts_dir / "script.json",
+                artifacts_dir / "type_offsets.json",
+                root / "cpp2il" / "DiffableCs",
+                "aotopsy",
+                None,
+            )
+            headless_logs = HeadlessLogs(
+                root / "application.log",
+                root / "script.log",
+                root / "launcher.log",
+                0.0,
+            )
+            config = RunConfig(binary, root / "output", dry_run=True)
+
+            with (
+                patch("il2cpp_ghidrah.pipeline.discover", return_value=installation),
+                patch("il2cpp_ghidrah.pipeline.resolve_input", return_value=resolved),
+                patch("il2cpp_ghidrah.pipeline.generate", return_value=artifacts),
+                patch("il2cpp_ghidrah.pipeline.run_headless", return_value=headless_logs) as mocked,
+            ):
+                run(config)
+
+            export_arguments = list(mocked.call_args_list[1].args[1])
+            jobs_index = export_arguments.index("--decompile-jobs")
+            self.assertEqual("8", export_arguments[jobs_index + 1])
 
 
 class InstallationTests(unittest.TestCase):
