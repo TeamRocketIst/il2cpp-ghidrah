@@ -131,6 +131,7 @@ def run(config: RunConfig) -> None:
                 import_command += [
                     "-postScript", "ghidraUnityMetadata.py", str(artifacts.script),
                 ]
+        print("Ghidra import (1/2)", flush=True)
         import_logs = run_headless(
             installation.ghidra_dir,
             import_command,
@@ -138,6 +139,8 @@ def run(config: RunConfig) -> None:
             dry_run=config.dry_run,
             show=config.show_commands,
         )
+        if not config.dry_run:
+            print(f"Ghidra import complete in {format_elapsed(import_logs.elapsed_seconds)}")
         if not config.dry_run:
             _require_clean_ghidra_log(import_logs.application)
             _require_clean_ghidra_log(import_logs.script)
@@ -167,6 +170,8 @@ def run(config: RunConfig) -> None:
         if artifacts.noreturn_seeds is not None:
             export_command += ["--noreturn-seeds", str(artifacts.noreturn_seeds)]
         export_command += ["--decompile-jobs", str(config.decompile_jobs)]
+        export_mode = "legacy sequential" if config.decompile_jobs == 0 else f"{config.decompile_jobs} workers"
+        print(f"Ghidra export (2/2), {export_mode}", flush=True)
         export_logs = run_headless(
             installation.ghidra_dir,
             export_command,
@@ -174,6 +179,8 @@ def run(config: RunConfig) -> None:
             dry_run=config.dry_run,
             show=config.show_commands,
         )
+        if not config.dry_run:
+            print(f"Ghidra export complete in {format_elapsed(export_logs.elapsed_seconds)}")
         if not config.dry_run:
             _require_clean_ghidra_log(export_logs.application)
             _require_clean_ghidra_log(export_logs.script)

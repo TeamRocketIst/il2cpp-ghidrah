@@ -163,18 +163,22 @@ class PipelineTests(unittest.TestCase):
                 0.0,
             )
             config = RunConfig(binary, root / "output", dry_run=True)
+            visible = io.StringIO()
 
-            with (
-                patch("il2cpp_ghidrah.pipeline.discover", return_value=installation),
-                patch("il2cpp_ghidrah.pipeline.resolve_input", return_value=resolved),
-                patch("il2cpp_ghidrah.pipeline.generate", return_value=artifacts),
-                patch("il2cpp_ghidrah.pipeline.run_headless", return_value=headless_logs) as mocked,
-            ):
-                run(config)
+            with contextlib.redirect_stdout(visible):
+                with (
+                    patch("il2cpp_ghidrah.pipeline.discover", return_value=installation),
+                    patch("il2cpp_ghidrah.pipeline.resolve_input", return_value=resolved),
+                    patch("il2cpp_ghidrah.pipeline.generate", return_value=artifacts),
+                    patch("il2cpp_ghidrah.pipeline.run_headless", return_value=headless_logs) as mocked,
+                ):
+                    run(config)
 
             export_arguments = list(mocked.call_args_list[1].args[1])
             jobs_index = export_arguments.index("--decompile-jobs")
             self.assertEqual("8", export_arguments[jobs_index + 1])
+            self.assertIn("Ghidra import (1/2)", visible.getvalue())
+            self.assertIn("Ghidra export (2/2), 8 workers", visible.getvalue())
 
 
 class InstallationTests(unittest.TestCase):
