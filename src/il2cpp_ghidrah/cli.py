@@ -64,10 +64,7 @@ def parser() -> argparse.ArgumentParser:
         choices=range(13),
         default=8,
         metavar="N",
-        help=(
-            "Ghidra decompiler workers from 0 through 12 "
-            "(default: 8; 0 uses the legacy sequential path)"
-        ),
+        help="Ghidra decompiler workers from 0 through 12 (default: 8; 0 uses the legacy sequential path)",
     )
     run_parser.add_argument("--dry-run", action="store_true")
     run_parser.add_argument("--show-commands", action="store_true")
