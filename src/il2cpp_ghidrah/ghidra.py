@@ -38,6 +38,15 @@ def _copy_isolated_log(root: Path, name: str, destination: Path) -> None:
         shutil.copyfile(matches[0], destination)
 
 
+def start_headless_pyghidra(install_dir: Path | str):
+    from pyghidra.launcher import HeadlessPyGhidraLauncher
+
+    launcher = HeadlessPyGhidraLauncher(install_dir=Path(install_dir))
+    launcher.add_vmargs("-Djava.awt.headless=true")
+    launcher.start()
+    return launcher
+
+
 def _headless_worker(
     install_dir: str,
     arguments: tuple[str, ...],
@@ -50,13 +59,11 @@ def _headless_worker(
     try:
         os.environ["XDG_CONFIG_HOME"] = config_home
         os.environ["XDG_CACHE_HOME"] = cache_home
-        import pyghidra
-
         with log.open("a", encoding="utf-8") as stream:
             mirror = MirroredTextWriter(stream, sys.stdout)
             mirror.write(f"PyGhidra process: {os.getpid()}\n")
             with contextlib.redirect_stdout(mirror), contextlib.redirect_stderr(mirror):
-                launcher = pyghidra.start(install_dir=Path(install_dir))
+                launcher = start_headless_pyghidra(install_dir)
 
                 from ghidra.app.util.headless import AnalyzeHeadless
 

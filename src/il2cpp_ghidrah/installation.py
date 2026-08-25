@@ -5,6 +5,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from .ghidra import start_headless_pyghidra
+
 
 @dataclass(frozen=True)
 class Installation:
@@ -149,7 +151,7 @@ def doctor(
         checks.append(("Selected importer", True, importer))
         if probe:
             import pyghidra
-            pyghidra.start(install_dir=installation.ghidra_dir)
+            start_headless_pyghidra(installation.ghidra_dir)
             checks.append(("PyGhidra probe", True, pyghidra.__version__))
     except FileNotFoundError as error:
         checks.append(("Ghidra/TurboHeader", False, str(error)))

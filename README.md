@@ -18,6 +18,12 @@ Set the Ghidra installation:
 export GHIDRA_INSTALL_DIR=/path/to/ghidra
 ```
 
+For a Homebrew installation, use the Ghidra root inside `libexec`:
+
+```sh
+export GHIDRA_INSTALL_DIR="$(brew --prefix ghidra)/libexec"
+```
+
 You can also pass it with `--ghidra /path/to/ghidra`.
 
 ## Installation

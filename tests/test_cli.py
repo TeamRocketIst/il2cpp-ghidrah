@@ -13,9 +13,9 @@ from unittest.mock import patch
 from il2cpp_ghidrah.cli import _class_list, parser
 from il2cpp_ghidrah.config import RunConfig
 from il2cpp_ghidrah.generators import Artifacts, _cpp2il_unity_version, select_generator
-from il2cpp_ghidrah.ghidra import HeadlessLogs, format_elapsed
+from il2cpp_ghidrah.ghidra import HeadlessLogs, format_elapsed, start_headless_pyghidra
 from il2cpp_ghidrah.inputs import ResolvedInput, resolve_input
-from il2cpp_ghidrah.installation import Installation, discover
+from il2cpp_ghidrah.installation import Installation, discover, doctor
 from il2cpp_ghidrah.pipeline import _require_clean_ghidra_log, run
 from il2cpp_ghidrah.process import run_command
 from il2cpp_ghidrah.selection import prepare_diffable_selection
@@ -182,6 +182,34 @@ class PipelineTests(unittest.TestCase):
 
 
 class InstallationTests(unittest.TestCase):
+    def test_probe_uses_shared_headless_launcher(self) -> None:
+        ghidra = Path("ghidra")
+        extension = ghidra / "Ghidra/Extensions/turboheader-ghidra-il2cpp"
+        installation = Installation(
+            ghidra,
+            extension,
+            extension / "ghidra_scripts",
+            Path("cparser-scripts"),
+            True,
+        )
+        with (
+            patch("il2cpp_ghidrah.installation.discover", return_value=installation),
+            patch("il2cpp_ghidrah.generators.resolve_tool", return_value="/usr/bin/tool"),
+            patch("il2cpp_ghidrah.installation.start_headless_pyghidra") as start,
+        ):
+            checks = doctor(
+                None,
+                importer="turbo",
+                generator="dumper",
+                il2cpp_command="il2cpp",
+                dumper_command="Il2CppDumper",
+                cpp2il_command="Cpp2IL",
+                probe=True,
+            )
+
+        start.assert_called_once_with(installation.ghidra_dir)
+        self.assertTrue(any(name == "PyGhidra probe" and ok for name, ok, _ in checks))
+
     def test_extension_must_be_installed_inside_ghidra(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -212,6 +240,14 @@ class InstallationTests(unittest.TestCase):
 
 
 class GhidraLogTests(unittest.TestCase):
+    def test_pyghidra_launcher_forces_awt_headless(self) -> None:
+        with patch("pyghidra.launcher.HeadlessPyGhidraLauncher") as launcher_type:
+            launcher = start_headless_pyghidra("ghidra")
+
+        launcher_type.assert_called_once_with(install_dir=Path("ghidra"))
+        launcher.add_vmargs.assert_called_once_with("-Djava.awt.headless=true")
+        launcher.start.assert_called_once_with()
+
     def test_elapsed_time_format(self) -> None:
         self.assertEqual("01:02:03.457", format_elapsed(3723.4567))
 
