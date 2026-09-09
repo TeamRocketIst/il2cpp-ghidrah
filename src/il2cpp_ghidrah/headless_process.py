@@ -71,10 +71,23 @@ class HeadlessRequest:
 
 @dataclass(frozen=True)
 class HeadlessResult:
+    command: Tuple[str, ...]
     application_log: Path
     script_log: Path
     launcher_log: Path
     elapsed_seconds: float
+
+    @property
+    def application(self) -> Path:
+        return self.application_log
+
+    @property
+    def script(self) -> Path:
+        return self.script_log
+
+    @property
+    def launcher(self) -> Path:
+        return self.launcher_log
 
 
 def _resolved_file(path: Path, description: str, *, allow_symlink: bool = False) -> Path:
@@ -176,23 +189,50 @@ class GhidraHeadlessRunner:
         application_log: Path,
         script_log: Path,
     ) -> Tuple[str, ...]:
-        project_directory = _resolved_directory(
-            request.project_directory, "Ghidra project directory"
-        )
-        script_directory = _resolved_directory(
-            request.script_directory, "Ghidra script directory"
-        )
-        _resolved_file(script_directory / request.script_name, "Ghidra script")
-        manifest = _resolved_file(request.manifest, "headless request manifest")
-        if manifest.stat().st_size > 1024 * 1024:
-            raise ValueError("headless request manifest exceeds 1 MiB")
+        return self._command(request, application_log, script_log, validate_files=True)
+
+    def preview_command(
+        self,
+        request: HeadlessRequest,
+        *,
+        application_log: Path,
+        script_log: Path,
+    ) -> Tuple[str, ...]:
+        return self._command(request, application_log, script_log, validate_files=False)
+
+    def _command(
+        self,
+        request: HeadlessRequest,
+        application_log: Path,
+        script_log: Path,
+        *,
+        validate_files: bool,
+    ) -> Tuple[str, ...]:
+        if validate_files:
+            project_directory = _resolved_directory(
+                request.project_directory, "Ghidra project directory"
+            )
+            script_directory = _resolved_directory(
+                request.script_directory, "Ghidra script directory"
+            )
+            _resolved_file(script_directory / request.script_name, "Ghidra script")
+            manifest = _resolved_file(request.manifest, "headless request manifest")
+            if manifest.stat().st_size > 1024 * 1024:
+                raise ValueError("headless request manifest exceeds 1 MiB")
+        else:
+            project_directory = request.project_directory.expanduser().resolve()
+            script_directory = request.script_directory.expanduser().resolve()
+            manifest = request.manifest.expanduser().resolve()
 
         if request.operation is HeadlessOperation.IMPORT:
-            target = str(_resolved_file(request.target, "import binary"))
             operation = "-import"
+            target_path = request.target.expanduser().resolve()
+            if validate_files:
+                target_path = _resolved_file(request.target, "import binary")
+            target = str(target_path)
         else:
-            target = str(request.target)
             operation = "-process"
+            target = str(request.target)
 
         command = (
             str(self._launcher),
@@ -232,16 +272,13 @@ class GhidraHeadlessRunner:
         launcher_log = _log_path(application_log.with_name(
             f"{application_log.stem}-launcher{application_log.suffix}"
         ), "Ghidra launcher log")
-        command = self.command(
-            request,
-            application_log=application_log,
-            script_log=script_log,
-        )
+        command_builder = self.preview_command if dry_run else self.command
+        command = command_builder(request, application_log=application_log, script_log=script_log)
         rendered = display_command(command)
         if show or dry_run:
             print(f"$ {rendered}")
         if dry_run:
-            return HeadlessResult(application_log, script_log, launcher_log, 0.0)
+            return HeadlessResult(command, application_log, script_log, launcher_log, 0.0)
         if timeout_seconds is not None and timeout_seconds <= 0:
             raise ValueError("headless timeout must be greater than zero")
 
@@ -311,7 +348,7 @@ class GhidraHeadlessRunner:
             raise RuntimeError(f"Ghidra did not create its application log: {application_log}")
         if not script_log.is_file():
             raise RuntimeError(f"Ghidra did not create its script log: {script_log}")
-        return HeadlessResult(application_log, script_log, launcher_log, elapsed)
+        return HeadlessResult(command, application_log, script_log, launcher_log, elapsed)
 
     def _stop(self, process: subprocess.Popen) -> None:
         if process.poll() is not None:

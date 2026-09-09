@@ -47,6 +47,7 @@ def discover(
     required = [
         ghidra / "Ghidra" / "application.properties",
         scripts / "ImportIl2CppTypes.java",
+        scripts / "ExportIl2Cpp.java",
         scripts / "cpp2il_ghidra_export_editable.py",
         extension / "lib" / "turboheader-ghidra-il2cpp.jar",
     ]

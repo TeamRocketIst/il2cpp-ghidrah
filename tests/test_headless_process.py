@@ -77,6 +77,29 @@ class HeadlessProcessTests(unittest.TestCase):
             self.assertEqual("--request", command[-2])
             self.assertEqual(str(request.manifest.resolve()), command[-1])
 
+    def test_dry_run_previews_paths_that_do_not_exist(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runner = GhidraHeadlessRunner(
+                make_installation(root), platform="posix", environment={"PATH": "/usr/bin"}
+            )
+            request = HeadlessRequest(
+                root / "future-project",
+                "Il2Cpp_Preview",
+                HeadlessOperation.IMPORT,
+                root / "future-libil2cpp.so",
+                root / "future-scripts",
+                "ImportIl2CppTypes.java",
+                root / "future-request.json",
+            )
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                result = runner.run(request, log=root / "ghidra.log", dry_run=True)
+
+            self.assertIn(str((root / "future-project").resolve()), result.command)
+            self.assertIn(str((root / "future-request.json").resolve()), result.command)
+            self.assertFalse(result.launcher_log.exists())
+
     def test_unapproved_script_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -13,7 +13,8 @@ from unittest.mock import patch
 from il2cpp_ghidrah.cli import _class_list, parser
 from il2cpp_ghidrah.config import RunConfig
 from il2cpp_ghidrah.generators import Artifacts, _cpp2il_unity_version, select_generator
-from il2cpp_ghidrah.ghidra import HeadlessLogs, format_elapsed, start_headless_pyghidra
+from il2cpp_ghidrah.ghidra import format_elapsed, start_headless_pyghidra
+from il2cpp_ghidrah.headless_process import HeadlessOperation, HeadlessResult
 from il2cpp_ghidrah.inputs import ResolvedInput, resolve_input
 from il2cpp_ghidrah.installation import Installation, discover, doctor
 from il2cpp_ghidrah.pipeline import _require_clean_ghidra_log, run
@@ -133,7 +134,7 @@ class ProcessTests(unittest.TestCase):
 
 
 class PipelineTests(unittest.TestCase):
-    def test_export_command_receives_default_decompile_jobs(self) -> None:
+    def test_turbo_pipeline_uses_java_headless_requests(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             binary = root / "libil2cpp.so"
@@ -156,27 +157,45 @@ class PipelineTests(unittest.TestCase):
                 "aotopsy",
                 None,
             )
-            headless_logs = HeadlessLogs(
-                root / "application.log",
-                root / "script.log",
-                root / "launcher.log",
-                0.0,
-            )
             config = RunConfig(binary, root / "output", dry_run=True)
             visible = io.StringIO()
+            import_result = HeadlessResult(
+                ("analyzeHeadless", "ImportIl2CppTypes.java"),
+                root / "import.log",
+                root / "import-script.log",
+                root / "import-launcher.log",
+                0.0,
+            )
+            export_result = HeadlessResult(
+                ("analyzeHeadless", "ExportIl2Cpp.java"),
+                root / "export.log",
+                root / "export-script.log",
+                root / "export-launcher.log",
+                0.0,
+            )
 
             with contextlib.redirect_stdout(visible):
                 with (
                     patch("il2cpp_ghidrah.pipeline.discover", return_value=installation),
                     patch("il2cpp_ghidrah.pipeline.resolve_input", return_value=resolved),
                     patch("il2cpp_ghidrah.pipeline.generate", return_value=artifacts),
-                    patch("il2cpp_ghidrah.pipeline.run_headless", return_value=headless_logs) as mocked,
+                    patch("il2cpp_ghidrah.pipeline.GhidraHeadlessRunner") as runner_type,
+                    patch("il2cpp_ghidrah.pipeline.run_headless") as legacy_runner,
                 ):
+                    runner_type.return_value.run.side_effect = [
+                        import_result,
+                        export_result,
+                    ]
                     run(config)
 
-            export_arguments = list(mocked.call_args_list[1].args[1])
-            jobs_index = export_arguments.index("--decompile-jobs")
-            self.assertEqual("8", export_arguments[jobs_index + 1])
+            requests = [
+                call.args[0] for call in runner_type.return_value.run.call_args_list
+            ]
+            self.assertEqual(HeadlessOperation.IMPORT, requests[0].operation)
+            self.assertEqual("ImportIl2CppTypes.java", requests[0].script_name)
+            self.assertEqual(HeadlessOperation.PROCESS, requests[1].operation)
+            self.assertEqual("ExportIl2Cpp.java", requests[1].script_name)
+            legacy_runner.assert_not_called()
             self.assertIn("Ghidra import (1/2)", visible.getvalue())
             self.assertIn("Ghidra export (2/2), 8 workers", visible.getvalue())
 
@@ -229,6 +248,7 @@ class InstallationTests(unittest.TestCase):
             native.mkdir(parents=True)
             (ghidra / "Ghidra/application.properties").touch()
             (scripts / "ImportIl2CppTypes.java").touch()
+            (scripts / "ExportIl2Cpp.java").touch()
             (scripts / "cpp2il_ghidra_export_editable.py").touch()
             (extension / "lib").mkdir()
             (extension / "lib/turboheader-ghidra-il2cpp.jar").touch()
