@@ -11,6 +11,14 @@ class CommandError(RuntimeError):
     pass
 
 
+def format_elapsed(seconds: float) -> str:
+    milliseconds = round(max(0.0, seconds) * 1000)
+    hours, remainder = divmod(milliseconds, 3_600_000)
+    minutes, remainder = divmod(remainder, 60_000)
+    whole_seconds, milliseconds = divmod(remainder, 1000)
+    return f"{hours:02d}:{minutes:02d}:{whole_seconds:02d}.{milliseconds:03d}"
+
+
 class MirroredTextWriter:
     def __init__(self, *streams: TextIO) -> None:
         self._streams = streams

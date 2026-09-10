@@ -7,7 +7,6 @@ from pathlib import Path
 
 from .config import RunConfig
 from .generators import generate
-from .ghidra import format_elapsed
 from .headless_manifest import (
     ExportManifest,
     ImportManifest,
@@ -22,7 +21,7 @@ from .headless_process import (
 )
 from .inputs import resolve_input
 from .installation import discover
-from .process import display_command
+from .process import display_command, format_elapsed
 from .selection import prepare_diffable_selection
 
 

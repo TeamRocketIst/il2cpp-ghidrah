@@ -5,9 +5,8 @@
 ## Requirements
 
 - Python 3.9 or newer.
-- PyGhidra 3.1 or newer.
 - Ghidra 12 or newer.
-- [TurboHeader](https://github.com/TeamRocketIst/turboHeader) installed under Ghidra's `Ghidra/Extensions` directory.
+- [TurboHeader](https://github.com/TeamRocketIst/turboHeader) 1.3.9 or newer, installed under Ghidra's `Ghidra/Extensions` directory.
 - `Il2CppDumper` and `Cpp2IL`.
 
 Generator commands must be available through `PATH`, unless an explicit executable is supplied with the corresponding command option.
@@ -38,13 +37,6 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install .
 il2cpp-ghidrah doctor --probe
-```
-
-For an offline installation, activate `.venv` and use the PyGhidra wheels included with Ghidra:
-
-```sh
-python -m pip install --no-index \
-  -f "$GHIDRA_INSTALL_DIR/Ghidra/Features/PyGhidra/pypkg/dist" .
 ```
 
 For development:
@@ -87,13 +79,13 @@ Il2CppDumper creates the header and metadata artifacts, while Cpp2IL creates the
 il2cpp-ghidrah run game.apk -o out -g dumper --importer turbo -u "$UNITY_VERSION"
 ```
 
-The compatibility importer uses the bundled CParserUtils scripts:
+The compatibility importer uses Ghidra's CParser through a fixed Java script:
 
 ```sh
 il2cpp-ghidrah run game.apk -o out -g dumper --importer cparser -u "$UNITY_VERSION"
 ```
 
-That flow runs `parse_header_headless.py`, `ghidra_with_struct_headless.py`, and `ghidraUnityMetadata.py`. It imports the header, method signatures, and basic metadata labels, but it does not currently provide TurboHeader's authoritative layouts or complete GOT typing. TurboHeader is still required for the exporter.
+It shares TurboHeader's method, string, metadata, relocation and export stages. CParser infers layouts from `il2cpp.h` and does not consume external field offsets, so the native importer remains recommended.
 
 TurboHeader layout policies are:
 

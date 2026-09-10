@@ -13,13 +13,12 @@ from unittest.mock import patch
 from il2cpp_ghidrah.cli import _class_list, parser
 from il2cpp_ghidrah.config import RunConfig
 from il2cpp_ghidrah.generators import Artifacts, _cpp2il_unity_version, select_generator
-from il2cpp_ghidrah.ghidra import format_elapsed, start_headless_pyghidra
 from il2cpp_ghidrah.headless_process import HeadlessOperation, HeadlessResult
 from il2cpp_ghidrah.inputs import ResolvedInput, resolve_input
 from il2cpp_ghidrah.installation import Installation, discover, doctor
 from il2cpp_ghidrah.headless_process import require_clean_ghidra_log
 from il2cpp_ghidrah.pipeline import run
-from il2cpp_ghidrah.process import run_command
+from il2cpp_ghidrah.process import format_elapsed, run_command
 from il2cpp_ghidrah.selection import prepare_diffable_selection
 
 
@@ -306,14 +305,6 @@ class InstallationTests(unittest.TestCase):
 
 
 class GhidraLogTests(unittest.TestCase):
-    def test_pyghidra_launcher_forces_awt_headless(self) -> None:
-        with patch("pyghidra.launcher.HeadlessPyGhidraLauncher") as launcher_type:
-            launcher = start_headless_pyghidra("ghidra")
-
-        launcher_type.assert_called_once_with(install_dir=Path("ghidra"))
-        launcher.add_vmargs.assert_called_once_with("-Djava.awt.headless=true")
-        launcher.start.assert_called_once_with()
-
     def test_elapsed_time_format(self) -> None:
         self.assertEqual("01:02:03.457", format_elapsed(3723.4567))
 

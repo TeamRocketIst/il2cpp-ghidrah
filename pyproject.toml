@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "il2cpp-ghidrah"
-version = "0.1.5"
+version = "0.2.0"
 description = "Headless Ghidra pipeline for Unity IL2CPP applications"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [{ name = "il2cpp-ghidrah contributors" }]
-dependencies = ["pyghidra>=3.1,<4"]
+dependencies = []
 
 [project.scripts]
 il2cpp-ghidrah = "il2cpp_ghidrah.cli:main"
@@ -19,7 +19,7 @@ il2cpp-ghidrah = "il2cpp_ghidrah.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-il2cpp_ghidrah = ["ghidra_scripts/*.java", "ghidra_scripts/*.py"]
+il2cpp_ghidrah = ["ghidra_scripts/*.java"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
