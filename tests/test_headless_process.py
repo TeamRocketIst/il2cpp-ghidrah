@@ -116,6 +116,25 @@ class HeadlessProcessTests(unittest.TestCase):
                     request.manifest,
                 )
 
+    def test_cparser_import_script_is_allowed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            request = make_request(root)
+            cparser = request.script_directory / "ImportIl2CppCParser.java"
+            cparser.write_text("class ImportIl2CppCParser {}\n", encoding="utf-8")
+
+            accepted = HeadlessRequest(
+                request.project_directory,
+                request.project_name,
+                request.operation,
+                request.target,
+                request.script_directory,
+                cparser.name,
+                request.manifest,
+            )
+
+            self.assertEqual("ImportIl2CppCParser.java", accepted.script_name)
+
     def test_script_must_match_operation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

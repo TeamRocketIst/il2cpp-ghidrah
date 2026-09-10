@@ -19,7 +19,7 @@ il2cpp-ghidrah = "il2cpp_ghidrah.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-il2cpp_ghidrah = ["ghidra_scripts/*.py"]
+il2cpp_ghidrah = ["ghidra_scripts/*.java", "ghidra_scripts/*.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

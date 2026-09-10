@@ -134,7 +134,7 @@ class ProcessTests(unittest.TestCase):
 
 
 class PipelineTests(unittest.TestCase):
-    def test_turbo_pipeline_uses_java_headless_requests(self) -> None:
+    def _preview_requests(self, importer: str):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             binary = root / "libil2cpp.so"
@@ -157,7 +157,9 @@ class PipelineTests(unittest.TestCase):
                 "aotopsy",
                 None,
             )
-            config = RunConfig(binary, root / "output", dry_run=True)
+            config = RunConfig(
+                binary, root / "output", importer=importer, dry_run=True
+            )
             visible = io.StringIO()
             import_result = HeadlessResult(
                 ("analyzeHeadless", "ImportIl2CppTypes.java"),
@@ -180,7 +182,6 @@ class PipelineTests(unittest.TestCase):
                     patch("il2cpp_ghidrah.pipeline.resolve_input", return_value=resolved),
                     patch("il2cpp_ghidrah.pipeline.generate", return_value=artifacts),
                     patch("il2cpp_ghidrah.pipeline.GhidraHeadlessRunner") as runner_type,
-                    patch("il2cpp_ghidrah.pipeline.run_headless") as legacy_runner,
                 ):
                     runner_type.return_value.run.side_effect = [
                         import_result,
@@ -188,16 +189,26 @@ class PipelineTests(unittest.TestCase):
                     ]
                     run(config)
 
-            requests = [
+            return [
                 call.args[0] for call in runner_type.return_value.run.call_args_list
-            ]
-            self.assertEqual(HeadlessOperation.IMPORT, requests[0].operation)
-            self.assertEqual("ImportIl2CppTypes.java", requests[0].script_name)
-            self.assertEqual(HeadlessOperation.PROCESS, requests[1].operation)
-            self.assertEqual("ExportIl2Cpp.java", requests[1].script_name)
-            legacy_runner.assert_not_called()
-            self.assertIn("Ghidra import (1/2)", visible.getvalue())
-            self.assertIn("Ghidra export (2/2), 8 workers", visible.getvalue())
+            ], visible.getvalue()
+
+    def test_turbo_pipeline_uses_java_headless_requests(self) -> None:
+        requests, output = self._preview_requests("turbo")
+        self.assertEqual(HeadlessOperation.IMPORT, requests[0].operation)
+        self.assertEqual("ImportIl2CppTypes.java", requests[0].script_name)
+        self.assertEqual(HeadlessOperation.PROCESS, requests[1].operation)
+        self.assertEqual("ExportIl2Cpp.java", requests[1].script_name)
+        self.assertIn("Ghidra import (1/2)", output)
+        self.assertIn("Ghidra export (2/2), 8 workers", output)
+
+    def test_cparser_pipeline_uses_java_headless_requests(self) -> None:
+        requests, output = self._preview_requests("cparser")
+        self.assertEqual(HeadlessOperation.IMPORT, requests[0].operation)
+        self.assertEqual("ImportIl2CppCParser.java", requests[0].script_name)
+        self.assertEqual(HeadlessOperation.PROCESS, requests[1].operation)
+        self.assertEqual("ExportIl2Cpp.java", requests[1].script_name)
+        self.assertIn("Ghidra import (1/2)", output)
 
 
 class InstallationTests(unittest.TestCase):
@@ -238,7 +249,7 @@ class InstallationTests(unittest.TestCase):
             with self.assertRaisesRegex(FileNotFoundError, "must be installed"):
                 discover(ghidra)
 
-    def test_cparser_scripts_are_packaged(self) -> None:
+    def test_cparser_script_is_packaged(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             ghidra = Path(directory) / "ghidra"
             extension = ghidra / "Ghidra/Extensions/turboheader-ghidra-il2cpp"
@@ -253,10 +264,39 @@ class InstallationTests(unittest.TestCase):
             (extension / "lib").mkdir()
             (extension / "lib/turboheader-ghidra-il2cpp.jar").touch()
             (native / "libturboheader_il2cpp.so").touch()
+            (extension / "extension.properties").write_text(
+                "version=1.3.9\n", encoding="utf-8"
+            )
             installation = discover(ghidra)
             self.assertTrue(
-                (installation.cparser_scripts_dir / "parse_header_headless.py").is_file()
+                (installation.cparser_scripts_dir / "ImportIl2CppCParser.java").is_file()
             )
+
+    def test_old_turboheader_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            ghidra = root / "ghidra"
+            extension = ghidra / "Ghidra/Extensions/turboheader-ghidra-il2cpp"
+            scripts = extension / "ghidra_scripts"
+            native = extension / "os/linux_x86_64"
+            scripts.mkdir(parents=True)
+            native.mkdir(parents=True)
+            (ghidra / "Ghidra/application.properties").touch()
+            for name in (
+                "ImportIl2CppTypes.java",
+                "ExportIl2Cpp.java",
+                "cpp2il_ghidra_export_editable.py",
+            ):
+                (scripts / name).touch()
+            (extension / "lib").mkdir()
+            (extension / "lib/turboheader-ghidra-il2cpp.jar").touch()
+            (native / "libturboheader_il2cpp.so").touch()
+            (extension / "extension.properties").write_text(
+                "version=1.3.8\n", encoding="utf-8"
+            )
+
+            with self.assertRaisesRegex(FileNotFoundError, "1.3.9 or newer"):
+                discover(ghidra)
 
 
 class GhidraLogTests(unittest.TestCase):

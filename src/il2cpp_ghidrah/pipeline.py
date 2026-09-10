@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .config import RunConfig
 from .generators import generate
-from .ghidra import format_elapsed, run_headless
+from .ghidra import format_elapsed
 from .headless_manifest import (
     ExportManifest,
     ImportManifest,
@@ -66,6 +66,7 @@ def run(config: RunConfig) -> None:
         importer = "turbo"
     else:
         importer = "cparser"
+    runner = GhidraHeadlessRunner(installation.ghidra_dir)
     output = config.output.expanduser().resolve()
     output.mkdir(parents=True, exist_ok=True)
     logs = output / "logs"
@@ -112,62 +113,48 @@ def run(config: RunConfig) -> None:
                 classes=config.classes,
             )
 
-        if importer == "turbo":
-            runner = GhidraHeadlessRunner(installation.ghidra_dir)
-            import_manifest = temporary / "import-request.json"
-            if not config.dry_run:
-                import_manifest = write_import_manifest(
-                    temporary,
-                    ImportManifest(
-                        artifacts.header,
-                        artifacts.offsets if artifacts.offsets != Path("-") else None,
-                        artifacts.script,
-                        config.turbo_policy,
-                    ),
-                )
-            import_request = HeadlessRequest(
-                project_dir,
-                project_name,
-                HeadlessOperation.IMPORT,
-                resolved.binary,
-                installation.scripts_dir,
-                "ImportIl2CppTypes.java",
-                import_manifest,
+        import_manifest = temporary / "import-request.json"
+        import_offsets = (
+            artifacts.offsets
+            if importer == "turbo" and artifacts.offsets != Path("-")
+            else None
+        )
+        import_policy = config.turbo_policy if importer == "turbo" else "allow-inferred"
+        if not config.dry_run:
+            import_manifest = write_import_manifest(
+                temporary,
+                ImportManifest(
+                    artifacts.header,
+                    import_offsets,
+                    artifacts.script,
+                    import_policy,
+                ),
             )
-        else:
-            fallback_scripts = installation.cparser_scripts_dir
-            import_command = [
-                str(project_dir),
-                project_name,
-                "-import",
-                str(resolved.binary),
-                "-noanalysis",
-                "-scriptPath", str(fallback_scripts),
-                "-preScript", "parse_header_headless.py", str(artifacts.header),
-                "-postScript", "ghidra_with_struct_headless.py", str(artifacts.script),
-            ]
-            if (fallback_scripts / "ghidraUnityMetadata.py").is_file():
-                import_command += [
-                    "-postScript", "ghidraUnityMetadata.py", str(artifacts.script),
-                ]
+        import_request = HeadlessRequest(
+            project_dir,
+            project_name,
+            HeadlessOperation.IMPORT,
+            resolved.binary,
+            (
+                installation.scripts_dir
+                if importer == "turbo"
+                else installation.cparser_scripts_dir
+            ),
+            (
+                "ImportIl2CppTypes.java"
+                if importer == "turbo"
+                else "ImportIl2CppCParser.java"
+            ),
+            import_manifest,
+        )
         print("Ghidra import (1/2)", flush=True)
-        if importer == "turbo":
-            import_logs = runner.run(
-                import_request,
-                log=logs / "ghidra-import.log",
-                dry_run=config.dry_run,
-                show=config.show_commands,
-            )
-            import_record = import_logs.command
-        else:
-            import_logs = run_headless(
-                installation.ghidra_dir,
-                import_command,
-                log=logs / "ghidra-import.log",
-                dry_run=config.dry_run,
-                show=config.show_commands,
-            )
-            import_record = tuple(import_command)
+        import_logs = runner.run(
+            import_request,
+            log=logs / "ghidra-import.log",
+            dry_run=config.dry_run,
+            show=config.show_commands,
+        )
+        import_record = import_logs.command
         if not config.dry_run:
             print(f"Ghidra import complete in {format_elapsed(import_logs.elapsed_seconds)}")
         if not config.dry_run:
@@ -180,68 +167,37 @@ def run(config: RunConfig) -> None:
                 )
 
         export_scope = "all" if config.scope == "whitelist" else config.scope
-        if importer == "turbo":
-            export_manifest = temporary / "export-request.json"
-            if not config.dry_run:
-                export_manifest = write_export_manifest(
-                    temporary,
-                    ExportManifest(
-                        selected_diffable,
-                        decompiled,
-                        export_scope,
-                        config.ignore_frameworks,
-                        artifacts.noreturn_seeds,
-                        config.decompile_jobs,
-                    ),
-                )
-            export_request = HeadlessRequest(
-                project_dir,
-                project_name,
-                HeadlessOperation.PROCESS,
-                Path(resolved.binary.name),
-                installation.scripts_dir,
-                "ExportIl2Cpp.java",
-                export_manifest,
+        export_manifest = temporary / "export-request.json"
+        if not config.dry_run:
+            export_manifest = write_export_manifest(
+                temporary,
+                ExportManifest(
+                    selected_diffable,
+                    decompiled,
+                    export_scope,
+                    config.ignore_frameworks,
+                    artifacts.noreturn_seeds,
+                    config.decompile_jobs,
+                ),
             )
-        else:
-            export_command = [
-                str(project_dir),
-                project_name,
-                "-process",
-                resolved.binary.name,
-                "-noanalysis",
-                "-scriptPath",
-                str(installation.scripts_dir),
-                "-postScript",
-                "cpp2il_ghidra_export_editable.py",
-                str(selected_diffable),
-                str(decompiled),
-                export_scope,
-            ]
-            if config.ignore_frameworks:
-                export_command.append(str(config.ignore_frameworks.resolve()))
-            if artifacts.noreturn_seeds is not None:
-                export_command += ["--noreturn-seeds", str(artifacts.noreturn_seeds)]
-            export_command += ["--decompile-jobs", str(config.decompile_jobs)]
+        export_request = HeadlessRequest(
+            project_dir,
+            project_name,
+            HeadlessOperation.PROCESS,
+            Path(resolved.binary.name),
+            installation.scripts_dir,
+            "ExportIl2Cpp.java",
+            export_manifest,
+        )
         export_mode = "legacy sequential" if config.decompile_jobs == 0 else f"{config.decompile_jobs} workers"
         print(f"Ghidra export (2/2), {export_mode}", flush=True)
-        if importer == "turbo":
-            export_logs = runner.run(
-                export_request,
-                log=logs / "ghidra-decompile.log",
-                dry_run=config.dry_run,
-                show=config.show_commands,
-            )
-            export_record = export_logs.command
-        else:
-            export_logs = run_headless(
-                installation.ghidra_dir,
-                export_command,
-                log=logs / "ghidra-decompile.log",
-                dry_run=config.dry_run,
-                show=config.show_commands,
-            )
-            export_record = tuple(export_command)
+        export_logs = runner.run(
+            export_request,
+            log=logs / "ghidra-decompile.log",
+            dry_run=config.dry_run,
+            show=config.show_commands,
+        )
+        export_record = export_logs.command
         if not config.dry_run:
             print(f"Ghidra export complete in {format_elapsed(export_logs.elapsed_seconds)}")
         if not config.dry_run:

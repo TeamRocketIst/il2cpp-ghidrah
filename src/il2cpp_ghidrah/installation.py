@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
 from .ghidra import start_headless_pyghidra
+
+MIN_TURBOHEADER_VERSION = (1, 3, 9)
 
 
 @dataclass(frozen=True)
@@ -34,8 +37,31 @@ def _directory(explicit: Path | None, environment_name: str, description: str) -
 
 def _cparser_scripts() -> Path | None:
     scripts = Path(__file__).resolve().parent / "ghidra_scripts"
-    required = ("parse_header_headless.py", "ghidra_with_struct_headless.py")
+    required = ("ImportIl2CppCParser.java",)
     return scripts if all((scripts / name).is_file() for name in required) else None
+
+
+def _turboheader_version(extension: Path) -> tuple[int, int, int]:
+    properties = extension / "extension.properties"
+    try:
+        lines = properties.read_text(encoding="utf-8").splitlines()
+    except OSError as error:
+        raise FileNotFoundError(
+            f"TurboHeader version metadata is missing: {properties}"
+        ) from error
+    value = next(
+        (line.split("=", 1)[1].strip() for line in lines if line.startswith("version=")),
+        None,
+    )
+    if value is None or not re.fullmatch(r"\d+\.\d+\.\d+", value):
+        raise FileNotFoundError(f"TurboHeader version is invalid: {properties}")
+    version = tuple(int(part) for part in value.split("."))
+    if version < MIN_TURBOHEADER_VERSION:
+        minimum = ".".join(str(part) for part in MIN_TURBOHEADER_VERSION)
+        raise FileNotFoundError(
+            f"TurboHeader {minimum} or newer is required; found {value}"
+        )
+    return version
 
 
 def discover(
@@ -57,6 +83,7 @@ def discover(
             "TurboHeader must be installed under the selected Ghidra installation; missing: "
             + ", ".join(missing)
         )
+    _turboheader_version(extension)
     extension_jar = extension / "lib" / "turboheader-ghidra-il2cpp.jar"
     native_libraries = (
         list(extension.glob("os/*/libturboheader_il2cpp.*"))
@@ -144,9 +171,9 @@ def doctor(
         )
         checks.append(
             (
-                "Packaged CParserUtils scripts",
+                "Packaged CParser script",
                 fallback is not None,
-                str(fallback) if fallback else "not configured",
+                str(fallback) if fallback else "not installed",
             )
         )
         checks.append(("Selected importer", True, importer))

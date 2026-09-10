@@ -22,9 +22,12 @@ class HeadlessOperation(Enum):
     PROCESS = "process"
 
 
-SCRIPT_BY_OPERATION = {
-    HeadlessOperation.IMPORT: "ImportIl2CppTypes.java",
-    HeadlessOperation.PROCESS: "ExportIl2Cpp.java",
+SCRIPTS_BY_OPERATION = {
+    HeadlessOperation.IMPORT: frozenset((
+        "ImportIl2CppTypes.java",
+        "ImportIl2CppCParser.java",
+    )),
+    HeadlessOperation.PROCESS: frozenset(("ExportIl2Cpp.java",)),
 }
 
 REMOVED_ENVIRONMENT = frozenset((
@@ -59,11 +62,13 @@ class HeadlessRequest:
             raise TypeError("headless operation must be a HeadlessOperation")
         if not _PROJECT_NAME.fullmatch(self.project_name):
             raise ValueError("invalid Ghidra project name")
-        if self.script_name not in SCRIPT_BY_OPERATION.values():
+        allowed_scripts = frozenset().union(*SCRIPTS_BY_OPERATION.values())
+        if self.script_name not in allowed_scripts:
             raise ValueError(f"headless script is not allowed: {self.script_name}")
-        expected_script = SCRIPT_BY_OPERATION[self.operation]
-        if self.script_name != expected_script:
-            raise ValueError(f"{self.operation.value} requires {expected_script}")
+        expected_scripts = SCRIPTS_BY_OPERATION[self.operation]
+        if self.script_name not in expected_scripts:
+            expected = " or ".join(sorted(expected_scripts))
+            raise ValueError(f"{self.operation.value} requires {expected}")
         program_name = str(self.target)
         if self.operation is HeadlessOperation.PROCESS and not _PROGRAM_NAME.fullmatch(program_name):
             raise ValueError("invalid Ghidra program name")
