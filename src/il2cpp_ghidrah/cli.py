@@ -74,7 +74,11 @@ def parser() -> argparse.ArgumentParser:
     doctor_parser = commands.add_parser("doctor", help="verify the headless toolchain installation")
     doctor_parser.add_argument("-g", "--generator", choices=("auto", "aotopsy", "dumper"), default="auto")
     doctor_parser.add_argument("--importer", choices=("turbo", "cparser"), default="turbo")
-    doctor_parser.add_argument("--probe", action="store_true", help="initialize Ghidra through PyGhidra")
+    doctor_parser.add_argument(
+        "--probe",
+        action="store_true",
+        help="run a temporary analyzeHeadless importer check",
+    )
     doctor_parser.add_argument("--json", action="store_true", dest="json_output")
     _common_tools(doctor_parser)
     return root

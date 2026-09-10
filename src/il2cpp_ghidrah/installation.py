@@ -1,12 +1,19 @@
 from __future__ import annotations
 
-import importlib.util
 import os
 import re
+import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from .ghidra import start_headless_pyghidra
+from .headless_manifest import ImportManifest, write_import_manifest
+from .headless_process import (
+    GhidraHeadlessRunner,
+    HeadlessOperation,
+    HeadlessRequest,
+    require_clean_ghidra_log,
+)
 
 MIN_TURBOHEADER_VERSION = (1, 3, 9)
 
@@ -101,6 +108,55 @@ def discover(
     return Installation(ghidra, extension, scripts, bundled, True)
 
 
+def _headless_probe(installation: Installation, importer: str) -> str:
+    with tempfile.TemporaryDirectory(prefix="il2cpp-ghidrah-probe-") as directory:
+        root = Path(directory)
+        project = root / "project"
+        project.mkdir()
+        header = root / "probe.h"
+        header.write_text(
+            "struct ProbeObject {\n    void *klass;\n    void *monitor;\n};\n",
+            encoding="utf-8",
+        )
+        manifest = write_import_manifest(
+            root,
+            ImportManifest(header, None, None, "allow-inferred"),
+        )
+        if importer == "turbo":
+            script_directory = installation.scripts_dir
+            script_name = "ImportIl2CppTypes.java"
+            success_marker = "TurboHeader native API"
+        else:
+            script_directory = installation.cparser_scripts_dir
+            script_name = "ImportIl2CppCParser.java"
+            success_marker = "TurboHeader CParser: imported header"
+
+        request = HeadlessRequest(
+            project,
+            "Il2CppGhidrahProbe",
+            HeadlessOperation.IMPORT,
+            Path(sys.executable).resolve(strict=True),
+            script_directory,
+            script_name,
+            manifest,
+        )
+        result = GhidraHeadlessRunner(installation.ghidra_dir).run(
+            request,
+            log=root / "ghidra.log",
+            timeout_seconds=120,
+            stream_output=False,
+        )
+        require_clean_ghidra_log(result.application)
+        require_clean_ghidra_log(result.script)
+        output = result.application.read_text(encoding="utf-8", errors="replace")
+        output += result.script.read_text(encoding="utf-8", errors="replace")
+        if success_marker not in output:
+            raise RuntimeError(
+                f"Ghidra probe did not confirm the {importer} importer"
+            )
+        return f"{importer} importer passed in {result.elapsed_seconds:.3f} s"
+
+
 def doctor(
     ghidra_dir: Path | None,
     *,
@@ -122,14 +178,6 @@ def doctor(
 
     command("Python", "python3")
     command("Java", "java")
-    pyghidra_available = importlib.util.find_spec("pyghidra") is not None
-    checks.append(
-        (
-            "PyGhidra",
-            pyghidra_available,
-            "installed" if pyghidra_available else "not installed",
-        )
-    )
     command("il2cpp", il2cpp_command, required=generator == "aotopsy")
     command("Il2CppDumper", dumper_command, required=generator == "dumper")
     command("Cpp2IL", cpp2il_command, required=generator == "dumper")
@@ -178,11 +226,13 @@ def doctor(
         )
         checks.append(("Selected importer", True, importer))
         if probe:
-            import pyghidra
-            start_headless_pyghidra(installation.ghidra_dir)
-            checks.append(("PyGhidra probe", True, pyghidra.__version__))
+            checks.append((
+                "analyzeHeadless probe",
+                True,
+                _headless_probe(installation, importer),
+            ))
     except FileNotFoundError as error:
         checks.append(("Ghidra/TurboHeader", False, str(error)))
-    except (OSError, ImportError, RuntimeError, ValueError) as error:
-        checks.append(("PyGhidra probe", False, str(error)))
+    except (OSError, RuntimeError, ValueError) as error:
+        checks.append(("analyzeHeadless probe", False, str(error)))
     return checks

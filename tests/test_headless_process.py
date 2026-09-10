@@ -274,6 +274,37 @@ class HeadlessProcessTests(unittest.TestCase):
             self.assertIn("progress\x1b[31m", result.launcher_log.read_text())
 
     @unittest.skipUnless(os.name == "posix", "fixture uses a POSIX executable")
+    def test_runner_can_suppress_visible_output(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            installation = make_installation(root)
+            launcher = installation / "support" / "analyzeHeadless"
+            launcher.write_text(
+                f"#!{sys.executable}\n"
+                "import pathlib, sys\n"
+                "args = sys.argv[1:]\n"
+                "pathlib.Path(args[args.index('-log') + 1]).write_text('application\\n')\n"
+                "pathlib.Path(args[args.index('-scriptlog') + 1]).write_text('script\\n')\n"
+                "print('hidden progress')\n",
+                encoding="utf-8",
+            )
+            launcher.chmod(0o755)
+            runner = GhidraHeadlessRunner(
+                installation, platform="posix", environment={"PATH": "/usr/bin"}
+            )
+            visible = io.StringIO()
+
+            with contextlib.redirect_stdout(visible):
+                result = runner.run(
+                    make_request(root),
+                    log=root / "ghidra.log",
+                    stream_output=False,
+                )
+
+            self.assertEqual("", visible.getvalue())
+            self.assertIn("hidden progress", result.launcher_log.read_text())
+
+    @unittest.skipUnless(os.name == "posix", "fixture uses a POSIX executable")
     def test_timeout_stops_an_idle_process(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

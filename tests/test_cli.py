@@ -17,7 +17,8 @@ from il2cpp_ghidrah.ghidra import format_elapsed, start_headless_pyghidra
 from il2cpp_ghidrah.headless_process import HeadlessOperation, HeadlessResult
 from il2cpp_ghidrah.inputs import ResolvedInput, resolve_input
 from il2cpp_ghidrah.installation import Installation, discover, doctor
-from il2cpp_ghidrah.pipeline import _require_clean_ghidra_log, run
+from il2cpp_ghidrah.headless_process import require_clean_ghidra_log
+from il2cpp_ghidrah.pipeline import run
 from il2cpp_ghidrah.process import run_command
 from il2cpp_ghidrah.selection import prepare_diffable_selection
 
@@ -212,7 +213,7 @@ class PipelineTests(unittest.TestCase):
 
 
 class InstallationTests(unittest.TestCase):
-    def test_probe_uses_shared_headless_launcher(self) -> None:
+    def test_probe_uses_analyzeheadless_importer_check(self) -> None:
         ghidra = Path("ghidra")
         extension = ghidra / "Ghidra/Extensions/turboheader-ghidra-il2cpp"
         installation = Installation(
@@ -225,7 +226,10 @@ class InstallationTests(unittest.TestCase):
         with (
             patch("il2cpp_ghidrah.installation.discover", return_value=installation),
             patch("il2cpp_ghidrah.generators.resolve_tool", return_value="/usr/bin/tool"),
-            patch("il2cpp_ghidrah.installation.start_headless_pyghidra") as start,
+            patch(
+                "il2cpp_ghidrah.installation._headless_probe",
+                return_value="turbo importer passed in 1.000 s",
+            ) as probe,
         ):
             checks = doctor(
                 None,
@@ -237,8 +241,10 @@ class InstallationTests(unittest.TestCase):
                 probe=True,
             )
 
-        start.assert_called_once_with(installation.ghidra_dir)
-        self.assertTrue(any(name == "PyGhidra probe" and ok for name, ok, _ in checks))
+        probe.assert_called_once_with(installation, "turbo")
+        self.assertTrue(
+            any(name == "analyzeHeadless probe" and ok for name, ok, _ in checks)
+        )
 
     def test_extension_must_be_installed_inside_ghidra(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -316,13 +322,13 @@ class GhidraLogTests(unittest.TestCase):
             log = Path(directory) / "ghidra.log"
             log.write_text("ERROR REPORT SCRIPT ERROR: bad type\n", encoding="utf-8")
             with self.assertRaisesRegex(RuntimeError, "SCRIPT ERROR"):
-                _require_clean_ghidra_log(log)
+                require_clean_ghidra_log(log)
 
     def test_normal_error_word_does_not_fail_the_run(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             log = Path(directory) / "ghidra.log"
             log.write_text("INFO no ERROR conditions found\n", encoding="utf-8")
-            _require_clean_ghidra_log(log)
+            require_clean_ghidra_log(log)
 
 
 class SelectionTests(unittest.TestCase):

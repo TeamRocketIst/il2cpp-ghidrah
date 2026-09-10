@@ -14,25 +14,16 @@ from .headless_manifest import (
     write_export_manifest,
     write_import_manifest,
 )
-from .headless_process import GhidraHeadlessRunner, HeadlessOperation, HeadlessRequest
+from .headless_process import (
+    GhidraHeadlessRunner,
+    HeadlessOperation,
+    HeadlessRequest,
+    require_clean_ghidra_log,
+)
 from .inputs import resolve_input
 from .installation import discover
 from .process import display_command
 from .selection import prepare_diffable_selection
-
-
-def _require_clean_ghidra_log(log: Path) -> None:
-    if not log.is_file():
-        raise RuntimeError(f"Ghidra did not create its expected log: {log}")
-    contents = log.read_text(encoding="utf-8", errors="replace")
-    failure_markers = (
-        "REPORT SCRIPT ERROR:",
-        "Abort due to Headless analyzer error:",
-        "Could not find project:",
-    )
-    marker = next((item for item in failure_markers if item in contents), None)
-    if marker:
-        raise RuntimeError(f"Ghidra reported {marker.rstrip(':')}; see {log}")
 
 
 def _require_exported_functions(directory: Path) -> None:
@@ -158,8 +149,8 @@ def run(config: RunConfig) -> None:
         if not config.dry_run:
             print(f"Ghidra import complete in {format_elapsed(import_logs.elapsed_seconds)}")
         if not config.dry_run:
-            _require_clean_ghidra_log(import_logs.application)
-            _require_clean_ghidra_log(import_logs.script)
+            require_clean_ghidra_log(import_logs.application)
+            require_clean_ghidra_log(import_logs.script)
             if not any(project_dir.glob(f"{project_name}*")):
                 raise RuntimeError(
                     f"Ghidra did not create project {project_name}; "
@@ -201,8 +192,8 @@ def run(config: RunConfig) -> None:
         if not config.dry_run:
             print(f"Ghidra export complete in {format_elapsed(export_logs.elapsed_seconds)}")
         if not config.dry_run:
-            _require_clean_ghidra_log(export_logs.application)
-            _require_clean_ghidra_log(export_logs.script)
+            require_clean_ghidra_log(export_logs.application)
+            require_clean_ghidra_log(export_logs.script)
             _require_exported_functions(decompiled)
             if not any(path.stat().st_size for path in decompiled.rglob("*.cpp")):
                 raise RuntimeError(

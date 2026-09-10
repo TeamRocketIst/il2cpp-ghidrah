@@ -45,6 +45,11 @@ REMOVED_ENVIRONMENT = frozenset((
 _PROJECT_NAME = re.compile(r"^[A-Za-z0-9_.-]+$")
 _PROGRAM_NAME = re.compile(r"^[A-Za-z0-9_.-]+$")
 _WINDOWS_BATCH_META = frozenset("&|<>^%!")
+_GHIDRA_FAILURE_MARKERS = (
+    "REPORT SCRIPT ERROR:",
+    "Abort due to Headless analyzer error:",
+    "Could not find project:",
+)
 
 
 @dataclass(frozen=True)
@@ -171,6 +176,17 @@ def _log_path(path: Path, description: str) -> Path:
     return expanded.resolve()
 
 
+def require_clean_ghidra_log(log: Path) -> None:
+    if not log.is_file():
+        raise RuntimeError(f"Ghidra did not create its expected log: {log}")
+    contents = log.read_text(encoding="utf-8", errors="replace")
+    marker = next(
+        (item for item in _GHIDRA_FAILURE_MARKERS if item in contents), None
+    )
+    if marker:
+        raise RuntimeError(f"Ghidra reported {marker.rstrip(':')}; see {log}")
+
+
 class GhidraHeadlessRunner:
     def __init__(
         self,
@@ -269,6 +285,7 @@ class GhidraHeadlessRunner:
         timeout_seconds: Optional[float] = None,
         dry_run: bool = False,
         show: bool = False,
+        stream_output: bool = True,
     ) -> HeadlessResult:
         application_log = _log_path(log, "Ghidra application log")
         script_log = _log_path(application_log.with_name(
@@ -331,8 +348,9 @@ class GhidraHeadlessRunner:
                         for line in process.stdout:
                             output.write(line)
                             output.flush()
-                            sys.stdout.write(_terminal_text(line))
-                            sys.stdout.flush()
+                            if stream_output:
+                                sys.stdout.write(_terminal_text(line))
+                                sys.stdout.flush()
                     return_code = process.wait()
                 except BaseException:
                     self._stop(process)
