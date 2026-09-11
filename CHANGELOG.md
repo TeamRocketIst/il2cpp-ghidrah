@@ -3,6 +3,7 @@
 ## 0.2.0
 
 - Replaced the embedded PyGhidra launcher with fixed `analyzeHeadless` Java entry points.
+- Removed the installation dependency on TurboHeader's obsolete Python exporter.
 - Added private typed request manifests for Ghidra import and export operations.
 - Routed the TurboHeader and CParser importers through the same metadata, relocation, and export pipeline.
 - Added live command output, retained logs, phase timings, and an eight-worker decompiler default.

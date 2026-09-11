@@ -81,7 +81,6 @@ def discover(
         ghidra / "Ghidra" / "application.properties",
         scripts / "ImportIl2CppTypes.java",
         scripts / "ExportIl2Cpp.java",
-        scripts / "cpp2il_ghidra_export_editable.py",
         extension / "lib" / "turboheader-ghidra-il2cpp.jar",
     ]
     missing = [str(path) for path in required if not path.is_file()]

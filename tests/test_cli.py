@@ -254,7 +254,7 @@ class InstallationTests(unittest.TestCase):
             with self.assertRaisesRegex(FileNotFoundError, "must be installed"):
                 discover(ghidra)
 
-    def test_cparser_script_is_packaged(self) -> None:
+    def test_java_export_scripts_are_sufficient(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             ghidra = Path(directory) / "ghidra"
             extension = ghidra / "Ghidra/Extensions/turboheader-ghidra-il2cpp"
@@ -265,7 +265,6 @@ class InstallationTests(unittest.TestCase):
             (ghidra / "Ghidra/application.properties").touch()
             (scripts / "ImportIl2CppTypes.java").touch()
             (scripts / "ExportIl2Cpp.java").touch()
-            (scripts / "cpp2il_ghidra_export_editable.py").touch()
             (extension / "lib").mkdir()
             (extension / "lib/turboheader-ghidra-il2cpp.jar").touch()
             (native / "libturboheader_il2cpp.so").touch()
@@ -290,7 +289,6 @@ class InstallationTests(unittest.TestCase):
             for name in (
                 "ImportIl2CppTypes.java",
                 "ExportIl2Cpp.java",
-                "cpp2il_ghidra_export_editable.py",
             ):
                 (scripts / name).touch()
             (extension / "lib").mkdir()
