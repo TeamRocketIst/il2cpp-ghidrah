@@ -1,6 +1,6 @@
 # il2cpp-ghidrah
 
-`il2cpp-ghidrah` runs artifact generation, typed Ghidra import and targeted C++ export through [two headless Ghidra processes](https://github.com/TeamRocketIst/il2cpp-ghidrah/blob/e3a8a05654b0a416bdafb6c3362acd213135d18e/src/il2cpp_ghidrah/pipeline.py#L106-L190). [Class and assembly selection](https://github.com/TeamRocketIst/turboHeader/blob/2ef4d06c81611bd6cfe86f51d60750bf9d5a1e63/src/main/java/turboheader/il2cpp/Il2CppClassSelector.java#L57-L87) avoids wasting time decompiling framework code.
+`il2cpp-ghidrah` runs artifact generation, typed Ghidra import and targeted C++ export through [two headless Ghidra processes](https://github.com/TeamRocketIst/il2cpp-ghidrah/blob/e3a8a05654b0a416bdafb6c3362acd213135d18e/src/il2cpp_ghidrah/pipeline.py#L106-L190). [Class and assembly selection](https://github.com/TeamRocketIst/turboHeader/blob/ed24c5adf77ba926a942c8836befb19f517d65ff/src/main/java/turboheader/il2cpp/exporting/Il2CppClassSelector.java#L60-L90) avoids wasting time decompiling framework code.
 
 The workflow is developed and tested mainly for ARM64. x86-64 support is currently experimental.
 
