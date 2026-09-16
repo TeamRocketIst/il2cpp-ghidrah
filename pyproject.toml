@@ -12,6 +12,10 @@ license = { text = "MIT" }
 authors = [{ name = "il2cpp-ghidrah contributors" }]
 dependencies = []
 
+[project.urls]
+Repository = "https://github.com/TeamRocketIst/il2cpp-ghidrah"
+Changelog = "https://github.com/TeamRocketIst/il2cpp-ghidrah/releases"
+
 [project.scripts]
 il2cpp-ghidrah = "il2cpp_ghidrah.cli:main"
 
