@@ -82,6 +82,8 @@ def generate(
     generator, generator_command, cpp2il_command = select_generator(config)
     cpp2il_unity_version = None
     if generator == "dumper":
+        if config.artifact_profile != "ghidra":
+            raise ValueError("--profile full requires the AOT generator")
         cpp2il_unity_version = _cpp2il_unity_version(config)
     print(f"Artifact generator selected: {generator}")
     if generator == "aotopsy":
@@ -90,6 +92,8 @@ def generate(
             "gen",
             str(resolved.original),
             str(artifacts_dir),
+            "--profile",
+            config.artifact_profile,
             *input_options,
         ]
     else:
@@ -152,10 +156,6 @@ def generate(
         missing = [str(path) for path in required if not path.exists()]
         if missing:
             raise FileNotFoundError("generator did not produce: " + ", ".join(missing))
-    noreturn_seeds = artifacts_dir / "noreturn-seeds.txt" if generator == "aotopsy" else None
-    if noreturn_seeds is not None and not config.dry_run:
-        if not noreturn_seeds.is_file() or noreturn_seeds.stat().st_size == 0:
-            noreturn_seeds = None
     return Artifacts(
         artifacts_dir,
         header,
@@ -163,5 +163,5 @@ def generate(
         offsets,
         cpp2il_dir / "DiffableCs",
         generator,
-        noreturn_seeds,
+        None,
     )

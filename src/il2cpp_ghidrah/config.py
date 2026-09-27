@@ -16,6 +16,7 @@ class RunConfig:
     input_path: Path
     output: Path
     generator: str = "auto"
+    artifact_profile: str = "ghidra"
     layout: str = "external"
     scope: str = "blacklist"
     metadata: Path | None = None
@@ -38,6 +39,8 @@ class RunConfig:
     keep_temporary: bool = False
 
     def __post_init__(self) -> None:
+        if self.artifact_profile not in {"ghidra", "full"}:
+            raise ValueError("artifact_profile must be ghidra or full")
         if type(self.decompile_jobs) is not int or not 0 <= self.decompile_jobs <= 12:
             raise ValueError("decompile_jobs must be an integer from 0 through 12")
 

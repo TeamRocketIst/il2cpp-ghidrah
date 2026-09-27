@@ -86,7 +86,10 @@ def run(config: RunConfig) -> None:
         print(f"  Metadata: {resolved.metadata}")
         print(f"  Unity data: {resolved.unity_data or '-'}")
         print(f"  Assets:   {resolved.assets or '-'}")
-        print(f"  Generator: {config.generator}; layout: {config.layout}; scope: {config.scope}")
+        print(
+            f"  Generator: {config.generator}; profile: {config.artifact_profile}; "
+            f"layout: {config.layout}; scope: {config.scope}"
+        )
         print(f"  Header importer: {importer}")
 
         artifacts = generate(config, resolved, output / "artifacts", output / "cpp2il", logs)
@@ -205,6 +208,7 @@ def run(config: RunConfig) -> None:
             "binary": str(resolved.binary),
             "metadata": str(resolved.metadata),
             "generator": artifacts.generator,
+            "artifact_profile": config.artifact_profile,
             "importer": importer,
             "layout": config.layout,
             "scope": config.scope,

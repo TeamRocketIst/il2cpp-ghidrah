@@ -44,6 +44,12 @@ def parser() -> argparse.ArgumentParser:
     run_parser.add_argument("input", type=Path, help="APK/XAPK/APKS/ZIP, extracted directory, or native binary")
     run_parser.add_argument("-o", "--output", type=Path, required=True)
     run_parser.add_argument("-g", "--generator", choices=("auto", "aotopsy", "dumper"), default="auto")
+    run_parser.add_argument(
+        "--profile",
+        choices=("ghidra", "full"),
+        default="ghidra",
+        help="AOT generator artifact profile (default: ghidra)",
+    )
     run_parser.add_argument("--importer", choices=("turbo", "cparser"), default="turbo")
     run_parser.add_argument("-l", "--layout", choices=("inferred", "external", "authoritative"), default="external")
     run_parser.add_argument("-s", "--scope", choices=("whitelist", "blacklist", "all"), default="blacklist")
@@ -92,6 +98,7 @@ def _run(args: argparse.Namespace) -> None:
         input_path=args.input,
         output=args.output,
         generator=args.generator,
+        artifact_profile=args.profile,
         layout=args.layout,
         scope=args.scope,
         metadata=args.metadata,

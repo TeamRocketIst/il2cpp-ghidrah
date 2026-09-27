@@ -158,7 +158,7 @@ Cpp2IL forced-file mode requires the exact Unity version. The Dumper flow stops 
 
 ```text
 output/
-├── artifacts/   il2cpp.h, script.json, offsets, dump.cs
+├── artifacts/   il2cpp.h, script.json, dump.cs, optional type_offsets.json
 ├── cpp2il/      DiffableCs class tree
 ├── project/     Ghidra project
 ├── decompiled/  assembly/namespace/class.cpp

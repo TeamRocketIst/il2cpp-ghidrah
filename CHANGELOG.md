@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1
+
+- Use local non-return discovery instead of legacy address-only seed files.
+- Request the Ghidra artifact profile from the AOT generator.
+- Allow `--profile full` while keeping `ghidra` as the default artifact profile.
+
 ## 0.2.0
 
 - Replaced the embedded PyGhidra launcher with fixed `analyzeHeadless` Java entry points.

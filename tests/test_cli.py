@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 from il2cpp_ghidrah.cli import _class_list, parser
 from il2cpp_ghidrah.config import RunConfig
-from il2cpp_ghidrah.generators import Artifacts, _cpp2il_unity_version, select_generator
+from il2cpp_ghidrah.generators import Artifacts, _cpp2il_unity_version, generate, select_generator
 from il2cpp_ghidrah.headless_process import HeadlessOperation, HeadlessResult
 from il2cpp_ghidrah.inputs import ResolvedInput, resolve_input
 from il2cpp_ghidrah.installation import Installation, discover, doctor
@@ -26,6 +26,7 @@ class CliTests(unittest.TestCase):
     def test_default_generator_is_auto(self) -> None:
         args = parser().parse_args(["run", "game.apk", "-o", "out"])
         self.assertEqual("auto", args.generator)
+        self.assertEqual("ghidra", args.profile)
         self.assertEqual("turbo", args.importer)
         self.assertEqual(8, args.decompile_jobs)
 
@@ -34,6 +35,12 @@ class CliTests(unittest.TestCase):
             "run", "game.apk", "-o", "out", "--decompile-jobs", "3",
         ])
         self.assertEqual(3, args.decompile_jobs)
+
+    def test_artifact_profile_can_be_overridden(self) -> None:
+        args = parser().parse_args([
+            "run", "game.apk", "-o", "out", "--profile", "full",
+        ])
+        self.assertEqual("full", args.profile)
 
     def test_full_and_short_options(self) -> None:
         args = parser().parse_args([
@@ -58,6 +65,10 @@ class CliTests(unittest.TestCase):
     def test_run_config_rejects_unsupported_decompile_jobs(self) -> None:
         with self.assertRaisesRegex(ValueError, "from 0 through 12"):
             RunConfig(Path("input"), Path("output"), decompile_jobs=13)
+
+    def test_run_config_rejects_unsupported_artifact_profile(self) -> None:
+        with self.assertRaisesRegex(ValueError, "must be ghidra or full"):
+            RunConfig(Path("input"), Path("output"), artifact_profile="unknown")
 
 
 class InputTests(unittest.TestCase):
@@ -117,6 +128,87 @@ class GeneratorTests(unittest.TestCase):
             self.assertEqual("dumper", selected)
             self.assertEqual(str(dumper), selected_command)
             self.assertEqual(str(cpp2il), diffable_command)
+
+    def test_aotopsy_uses_ghidra_profile_and_ignores_legacy_seed_file(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            binary = root / "libil2cpp.so"
+            metadata = root / "global-metadata.dat"
+            artifacts_dir = root / "artifacts"
+            cpp2il_dir = root / "cpp2il"
+            binary.touch()
+            metadata.touch()
+            artifacts_dir.mkdir()
+            (artifacts_dir / "il2cpp.h").touch()
+            (artifacts_dir / "script.json").write_text("[]", encoding="utf-8")
+            (artifacts_dir / "type_offsets.json").write_text("{}", encoding="utf-8")
+            (artifacts_dir / "noreturn-seeds.txt").write_text("0x1000\n", encoding="utf-8")
+            (cpp2il_dir / "DiffableCs").mkdir(parents=True)
+            config = RunConfig(binary, root / "output", generator="aotopsy")
+            resolved = ResolvedInput(binary, binary, metadata, None, None)
+            with (
+                patch(
+                    "il2cpp_ghidrah.generators.select_generator",
+                    return_value=("aotopsy", "il2cpp", None),
+                ),
+                patch("il2cpp_ghidrah.generators.run_command") as run_command_mock,
+            ):
+                result = generate(
+                    config,
+                    resolved,
+                    artifacts_dir,
+                    cpp2il_dir,
+                    root / "logs",
+                )
+            generation_command = run_command_mock.call_args_list[0].args[0]
+            self.assertEqual(["--profile", "ghidra"], generation_command[4:6])
+            self.assertIsNone(result.noreturn_seeds)
+
+    def test_aotopsy_forwards_full_profile(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            binary = root / "libil2cpp.so"
+            metadata = root / "global-metadata.dat"
+            binary.touch()
+            metadata.touch()
+            config = RunConfig(
+                binary,
+                root / "output",
+                generator="aotopsy",
+                artifact_profile="full",
+                dry_run=True,
+            )
+            resolved = ResolvedInput(binary, binary, metadata, None, None)
+            with (
+                patch(
+                    "il2cpp_ghidrah.generators.select_generator",
+                    return_value=("aotopsy", "il2cpp", None),
+                ),
+                patch("il2cpp_ghidrah.generators.run_command") as run_command_mock,
+            ):
+                generate(config, resolved, root / "artifacts", root / "cpp2il", root / "logs")
+            generation_command = run_command_mock.call_args_list[0].args[0]
+            self.assertEqual(["--profile", "full"], generation_command[4:6])
+
+    def test_full_profile_rejects_dumper_generator(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            binary = root / "libil2cpp.so"
+            metadata = root / "global-metadata.dat"
+            config = RunConfig(
+                binary,
+                root / "output",
+                generator="dumper",
+                artifact_profile="full",
+                unity="2022.3.0f1",
+            )
+            resolved = ResolvedInput(binary, binary, metadata, None, None)
+            with patch(
+                "il2cpp_ghidrah.generators.select_generator",
+                return_value=("dumper", "Il2CppDumper", "Cpp2IL"),
+            ):
+                with self.assertRaisesRegex(ValueError, "requires the AOT generator"):
+                    generate(config, resolved, root / "artifacts", root / "cpp2il", root / "logs")
 
 
 class ProcessTests(unittest.TestCase):
