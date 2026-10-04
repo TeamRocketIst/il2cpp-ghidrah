@@ -167,3 +167,7 @@ output/
 ```
 
 The first Ghidra process imports and types the binary. The second reopens the project and exports the requested classes. Automatic whole-program analysis remains disabled in both phases.
+
+## Acknowledgments
+
+This project was developed together with Antonio Freire ([TSelecta](https://github.com/TSelecta)). His work and contributions were essential to making it possible.
