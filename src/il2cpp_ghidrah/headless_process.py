@@ -155,7 +155,7 @@ def _environment(source: Mapping[str, str], private_root: Path) -> Mapping[str, 
     return environment
 
 
-def _terminal_text(value: str) -> str:
+def _terminal_text(value: str, *, color: bool = False) -> str:
     output = []
     for character in value:
         if character in ("\n", "\t"):
@@ -164,7 +164,20 @@ def _terminal_text(value: str) -> str:
             output.append(f"\\u{ord(character):04x}")
         else:
             output.append(character)
-    return "".join(output)
+    text = "".join(output)
+    marker = "WARNING: TurboHeader "
+    if marker not in text:
+        return text
+    newline = "\n" if text.endswith("\n") else ""
+    warning = marker + text.partition(marker)[2].rstrip()
+    warning = warning.removesuffix(" (GhidraScript)")
+    if color:
+        return f"\x1b[33m{warning}\x1b[0m{newline}"
+    return warning + newline
+
+
+def _warning_color(environment: Mapping[str, str]) -> bool:
+    return sys.stdout.isatty() and "NO_COLOR" not in environment and environment.get("TERM") != "dumb"
 
 
 def _log_path(path: Path, description: str) -> Path:
@@ -303,6 +316,7 @@ class GhidraHeadlessRunner:
             return HeadlessResult(command, application_log, script_log, launcher_log, 0.0)
         if timeout_seconds is not None and timeout_seconds <= 0:
             raise ValueError("headless timeout must be greater than zero")
+        color = _warning_color(self._base_environment)
 
         application_log.parent.mkdir(parents=True, exist_ok=True)
         launcher_log.write_text(f"$ {rendered}\n", encoding="utf-8")
@@ -349,7 +363,7 @@ class GhidraHeadlessRunner:
                             output.write(line)
                             output.flush()
                             if stream_output:
-                                sys.stdout.write(_terminal_text(line))
+                                sys.stdout.write(_terminal_text(line, color=color))
                                 sys.stdout.flush()
                     return_code = process.wait()
                 except BaseException:

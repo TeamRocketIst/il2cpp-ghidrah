@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.2
+
+- Show TurboHeader warnings as one yellow line on interactive terminals; keep redirected output plain.
+- Honor NO_COLOR and TERM=dumb, preserve saved logs, and escape control characters before applying colour.
+
 ## 0.2.1
 
 - Use local non-return discovery instead of legacy address-only seed files.

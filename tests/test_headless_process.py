@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from il2cpp_ghidrah.headless_process import (
     GhidraHeadlessRunner,
@@ -15,6 +16,8 @@ from il2cpp_ghidrah.headless_process import (
     HeadlessRequest,
     _environment,
     _terminal_text,
+    _warning_color,
+    require_clean_ghidra_log,
 )
 
 
@@ -243,6 +246,87 @@ class HeadlessProcessTests(unittest.TestCase):
 
     def test_terminal_control_sequences_are_escaped(self) -> None:
         self.assertEqual("name\\u001b[31m\n", _terminal_text("name\x1b[31m\n"))
+
+    def test_warnings_are_one_plain_line_without_logger_prefixes(self) -> None:
+        for message in (
+            "skipped ambiguous methods: 2; see _ambiguous_matches.txt.",
+            "skipped metadata entries in ELF loader tables: 1.",
+            "skipped string entries in ELF loader tables: 1.",
+        ):
+            with self.subTest(message=message):
+                warning = "WARNING: TurboHeader " + message
+                line = "INFO  ExportIl2Cpp.java> " + warning + " (GhidraScript)  \n"
+                self.assertEqual(warning + "\n", _terminal_text(line))
+                self.assertEqual("\x1b[33m" + warning + "\x1b[0m\n", _terminal_text(line, color=True))
+
+    def test_warning_without_newline_does_not_gain_one(self) -> None:
+        warning = "WARNING: TurboHeader skipped 2 methods."
+        self.assertEqual(warning, _terminal_text(warning))
+        self.assertEqual("\x1b[33m" + warning + "\x1b[0m", _terminal_text(warning, color=True))
+
+    def test_warning_controls_are_escaped_before_colouring(self) -> None:
+        warning = "WARNING: TurboHeader sample\x1b[2J\r\u202e\n"
+        self.assertEqual(
+            "\x1b[33mWARNING: TurboHeader sample\\u001b[2J\\u000d\\u202e\x1b[0m\n",
+            _terminal_text(warning, color=True),
+        )
+
+    def test_normal_output_and_fatal_errors_are_not_reformatted(self) -> None:
+        for line in ("progress\n", "ERROR REPORT SCRIPT ERROR: failed\n", "java.lang.IllegalStateException\n"):
+            self.assertEqual(line, _terminal_text(line, color=True))
+
+    def test_warning_colour_requires_a_terminal_and_respects_environment(self) -> None:
+        for tty, environment, expected in (
+            (True, {}, True),
+            (False, {}, False),
+            (True, {"NO_COLOR": "1"}, False),
+            (True, {"NO_COLOR": ""}, False),
+            (True, {"TERM": "dumb"}, False),
+            (True, {"TERM": "xterm-256color"}, True),
+        ):
+            with self.subTest(tty=tty, environment=environment):
+                with patch("sys.stdout.isatty", return_value=tty):
+                    self.assertEqual(expected, _warning_color(environment))
+
+    def test_warnings_do_not_hide_fatal_log_markers(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            log = Path(directory) / "ghidra.log"
+            log.write_text("WARNING: TurboHeader skipped 1 method.\n", encoding="utf-8")
+            require_clean_ghidra_log(log)
+            log.write_text(log.read_text() + "ERROR REPORT SCRIPT ERROR: failure\n", encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "REPORT SCRIPT ERROR"):
+                require_clean_ghidra_log(log)
+
+    @unittest.skipUnless(os.name == "posix", "fixture uses a POSIX executable")
+    def test_runner_colours_only_terminal_output_not_saved_logs(self) -> None:
+        class Terminal(io.StringIO):
+            def isatty(self) -> bool:
+                return True
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            installation = make_installation(root)
+            launcher = installation / "support" / "analyzeHeadless"
+            line = "INFO  ExportIl2Cpp.java> WARNING: TurboHeader skipped 2 methods. (GhidraScript)"
+            launcher.write_text(
+                f"#!{sys.executable}\n"
+                "import pathlib, sys\n"
+                "args = sys.argv[1:]\n"
+                f"line = {line!r}\n"
+                "pathlib.Path(args[args.index('-log') + 1]).write_text(line + '\\n')\n"
+                "pathlib.Path(args[args.index('-scriptlog') + 1]).write_text(line + '\\n')\n"
+                "print(line)\n",
+                encoding="utf-8",
+            )
+            launcher.chmod(0o755)
+            runner = GhidraHeadlessRunner(installation, platform="posix", environment={"PATH": "/usr/bin"})
+            visible = Terminal()
+            with contextlib.redirect_stdout(visible):
+                result = runner.run(make_request(root), log=root / "ghidra.log")
+            self.assertEqual("\x1b[33mWARNING: TurboHeader skipped 2 methods.\x1b[0m\n", visible.getvalue())
+            for path in (result.application_log, result.script_log, result.launcher_log):
+                self.assertNotIn("\x1b", path.read_text())
+                self.assertIn(line, path.read_text())
 
     @unittest.skipUnless(os.name == "posix", "fixture uses a POSIX executable")
     def test_runner_executes_without_a_shell_and_collects_logs(self) -> None:
